@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Check by CyberDrain",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Protect against phishing attacks targeting Microsoft 365 login pages with enterprise-grade detection",
   "permissions": [
     "storage",
@@ -15,20 +15,20 @@
   ],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "scripts/background.js",
+    "service_worker": "wwwroot/js/background-service-worker.js",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["scripts/content.js"],
+      "js": ["wwwroot/js/content-script.js"],
       "css": ["styles/content.css"],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
   "action": {
-    "default_popup": "popup/popup.html",
+    "default_popup": "wwwroot/index.html?view=popup",
     "default_title": "Check",
     "default_icon": {
       "16": "images/icon16.png",
@@ -37,7 +37,7 @@
       "128": "images/icon128.png"
     }
   },
-  "options_page": "options/options.html",
+  "options_page": "wwwroot/index.html?view=options",
   "icons": {
     "16": "images/icon16.png",
     "32": "images/icon32.png",
@@ -50,14 +50,15 @@
         "config/*",
         "rules/*",
         "blocked.html",
-        "scripts/utils/logger.js",
-        "scripts/blocked.js"
+        "wwwroot/_framework/*",
+        "wwwroot/_content/*",
+        "wwwroot/js/*"
       ],
       "matches": ["<all_urls>"]
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;"
   },
   "storage": {
     "managed_schema": "config/managed_schema.json"

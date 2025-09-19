@@ -1,0 +1,527 @@
+@page "/"
+@using CheckWebAssembly.Services
+@using CheckWebAssembly.Models
+@inject IConfigurationManager ConfigManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Check Extension Dashboard</PageTitle>
+
+<div class="dashboard-container">
+    @if (isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading dashboard...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+            <div class="welcome-content">
+                <h1>Welcome to Check</h1>
+                <p class="subtitle">@brandingConfig.Features.WelcomeMessage</p>
+                <div class="protection-status @(config.ExtensionEnabled ? "enabled" : "disabled")">
+                    <div class="status-indicator">
+                        <div class="status-dot"></div>
+                        <span>Protection @(config.ExtensionEnabled ? "Enabled" : "Disabled")</span>
+                    </div>
+                </div>
+            </div>
+            <div class="welcome-actions">
+                @if (!config.ExtensionEnabled)
+                {
+                    <button class="btn-primary" @onclick="EnableProtection">
+                        <span>🛡️</span>
+                        Enable Protection
+                    </button>
+                }
+                <button class="btn-secondary" @onclick="OpenSettings">
+                    <span>⚙️</span>
+                    Settings
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🛡️</div>
+                <div class="stat-content">
+                    <div class="stat-number">@stats.BlockedThreats</div>
+                    <div class="stat-label">Threats Blocked</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">🔍</div>
+                <div class="stat-content">
+                    <div class="stat-number">@stats.ScannedPages</div>
+                    <div class="stat-label">Pages Scanned</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-content">
+                    <div class="stat-number">@stats.SecurityEvents</div>
+                    <div class="stat-label">Security Events</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">📈</div>
+                <div class="stat-content">
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Overview -->
+        <div class="features-section">
+            <h2>Active Features</h2>
+            <div class="features-grid">
+                <div class="feature-item @(config.EnablePageBlocking ? "enabled" : "disabled")">
+                    <div class="feature-icon">🚫</div>
+                    <div class="feature-content">
+                        <h3>Page Blocking</h3>
+                        <p>Automatically blocks malicious pages</p>
+                        <div class="feature-status">
+                            @(config.EnablePageBlocking ? "Active" : "Inactive")
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="feature-item @(config.EnableContentManipulation ? "enabled" : "disabled")">
+                    <div class="feature-icon">🔧</div>
+                    <div class="feature-content">
+                        <h3>Content Protection</h3>
+                        <p>Modifies suspicious content with warnings</p>
+                        <div class="feature-status">
+                            @(config.EnableContentManipulation ? "Active" : "Inactive")
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="feature-item @(config.EnableUrlMonitoring ? "enabled" : "disabled")">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-content">
+                        <h3>URL Monitoring</h3>
+                        <p>Continuously monitors page URLs</p>
+                        <div class="feature-status">
+                            @(config.EnableUrlMonitoring ? "Active" : "Inactive")
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="feature-item @(config.ShowNotifications ? "enabled" : "disabled")">
+                    <div class="feature-icon">🔔</div>
+                    <div class="feature-content">
+                        <h3>Notifications</h3>
+                        <p>Shows security alerts and warnings</p>
+                        <div class="feature-status">
+                            @(config.ShowNotifications ? "Active" : "Inactive")
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="activity-section">
+            <h2>Recent Activity</h2>
+            <div class="activity-list">
+                @if (recentActivities.Any())
+                {
+                    @foreach (var activity in recentActivities)
+                    {
+                        <div class="activity-item @activity.Type.ToLower()">
+                            <div class="activity-icon">@activity.Icon</div>
+                            <div class="activity-content">
+                                <div class="activity-message">@activity.Message</div>
+                                <div class="activity-time">@activity.Time.ToString("MMM dd, HH:mm")</div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="no-activity">
+                        <p>No recent activity to display</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private ExtensionConfig config = new();
+    private BrandingConfig brandingConfig = new();
+    private DashboardStats stats = new();
+    private List<ActivityItem> recentActivities = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
+        try
+        {
+            isLoading = true;
+            
+            // Load configuration and branding
+            config = await ConfigManager.GetConfigAsync();
+            brandingConfig = await ConfigManager.GetFinalBrandingConfigAsync();
+            
+            // Load statistics
+            await LoadStatistics();
+            
+            // Load recent activity
+            LoadRecentActivity();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to load dashboard: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadStatistics()
+    {
+        // This would normally load from storage or service
+        // For now, using sample data
+        stats = new DashboardStats
+        {
+            BlockedThreats = 47,
+            ScannedPages = 1247,
+            SecurityEvents = 12,
+            Uptime = 99.9
+        };
+    }
+
+    private void LoadRecentActivity()
+    {
+        // This would normally load from logs or storage
+        // For now, using sample data
+        recentActivities = new List<ActivityItem>
+        {
+            new() { Type = "Success", Icon = "✅", Message = "Extension enabled successfully", Time = DateTime.Now.AddMinutes(-15) },
+            new() { Type = "Warning", Icon = "⚠️", Message = "Suspicious URL detected and blocked", Time = DateTime.Now.AddHours(-2) },
+            new() { Type = "Info", Icon = "ℹ️", Message = "Configuration settings updated", Time = DateTime.Now.AddHours(-4) },
+            new() { Type = "Success", Icon = "🛡️", Message = "Phishing attempt blocked", Time = DateTime.Now.AddDays(-1) }
+        };
+    }
+
+    private async Task EnableProtection()
+    {
+        try
+        {
+            config.ExtensionEnabled = true;
+            await ConfigManager.SetConfigAsync(config);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to enable protection: {ex.Message}");
+        }
+    }
+
+    private void OpenSettings()
+    {
+        // Navigate to settings view
+        _ = JSRuntime.InvokeVoidAsync("window.location.assign", "/?view=options");
+    }
+
+    private class DashboardStats
+    {
+        public int BlockedThreats { get; set; }
+        public int ScannedPages { get; set; }
+        public int SecurityEvents { get; set; }
+        public double Uptime { get; set; }
+    }
+
+    private class ActivityItem
+    {
+        public string Type { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string Message { get; set; } = "";
+        public DateTime Time { get; set; }
+    }
+}
+
+<style>
+    .dashboard-container {
+        font-size: 14px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 3rem 0;
+    }
+
+    .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid rgba(255, 255, 255, 0.2);
+        border-left: 3px solid #F77F00;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .welcome-section {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .welcome-content h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #F77F00;
+    }
+
+    .subtitle {
+        margin: 0 0 1rem 0;
+        font-size: 1rem;
+        color: rgba(255, 255, 255, 0.8);
+        line-height: 1.4;
+    }
+
+    .protection-status {
+        display: flex;
+        align-items: center;
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #10B981;
+    }
+
+    .protection-status.disabled .status-dot {
+        background: #EF4444;
+    }
+
+    .welcome-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        opacity: 0.8;
+    }
+
+    .stat-number {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #F77F00;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .features-section,
+    .activity-section {
+        margin-bottom: 2rem;
+    }
+
+    .features-section h2,
+    .activity-section h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+
+    .feature-item {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.2s ease;
+    }
+
+    .feature-item.enabled {
+        border-color: rgba(16, 185, 129, 0.3);
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .feature-item.disabled {
+        border-color: rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.05);
+    }
+
+    .feature-icon {
+        font-size: 1.5rem;
+        opacity: 0.8;
+    }
+
+    .feature-content h3 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .feature-content p {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.7);
+        line-height: 1.4;
+    }
+
+    .feature-status {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        display: inline-block;
+    }
+
+    .feature-item.enabled .feature-status {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10B981;
+    }
+
+    .feature-item.disabled .feature-status {
+        background: rgba(239, 68, 68, 0.2);
+        color: #EF4444;
+    }
+
+    .activity-list {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+
+    .activity-item {
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        font-size: 1.25rem;
+        margin-top: 0.125rem;
+    }
+
+    .activity-message {
+        font-size: 0.875rem;
+        color: white;
+        margin-bottom: 0.25rem;
+        line-height: 1.4;
+    }
+
+    .activity-time {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .no-activity {
+        padding: 2rem;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        padding: 0.75rem 1rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        text-decoration: none;
+    }
+
+    .btn-primary {
+        background: #F77F00;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #E56F00;
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+    }
+</style>

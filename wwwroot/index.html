@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Check WebAssembly Extension</title>
+    <base href="/" />
+    <link rel="icon" type="image/png" href="images/icon16.png" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link href="_content/CheckWebAssembly/css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app">
+        <div class="loading-container">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading Check Extension...</div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        <div class="blazor-error-message">
+            An unhandled error has occurred.
+            <a href="" class="reload">Reload</a>
+            <a class="dismiss">🗙</a>
+        </div>
+    </div>
+
+    <!-- Chrome Extension Interop -->
+    <script src="js/chrome-interop.js"></script>
+    
+    <!-- Blazor WebAssembly -->
+    <script src="_framework/blazor.webassembly.js"></script>
+    
+    <!-- Extension initialization -->
+    <script>
+        // Initialize extension after Blazor has loaded
+        Blazor.start().then(() => {
+            console.log('Check WebAssembly Extension loaded');
+            
+            // Initialize Chrome extension APIs
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                console.log('Chrome extension APIs available');
+            } else {
+                console.warn('Chrome extension APIs not available');
+            }
+        });
+    </script>
+
+    <style>
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #003049 0%, #005C63 100%);
+            color: white;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #F77F00;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        .loading-text {
+            font-size: 16px;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #blazor-error-ui {
+            background: #dc2626;
+            bottom: 0;
+            box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+            display: none;
+            left: 0;
+            padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+            position: fixed;
+            width: 100%;
+            z-index: 1000;
+            color: white;
+        }
+
+        #blazor-error-ui .dismiss {
+            cursor: pointer;
+            position: absolute;
+            right: 0.75rem;
+            top: 0.5rem;
+        }
+
+        .blazor-error-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .blazor-error-message .reload {
+            color: white;
+            text-decoration: underline;
+        }
+    </style>
+</body>
+</html>

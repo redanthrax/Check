@@ -17,6 +17,10 @@ build/
 *.crx
 *.pem
 
+# .NET build outputs
+bin/
+obj/
+
 # Development files
 .env
 .env.local

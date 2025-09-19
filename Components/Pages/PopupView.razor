@@ -1,0 +1,374 @@
+@page "/?view=popup"
+@using CheckWebAssembly.Services
+@using CheckWebAssembly.Models
+@inject IConfigurationManager ConfigManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Check Status</PageTitle>
+
+<div class="popup-container">
+    @if (isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading status...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Status Section -->
+        <div class="status-section">
+            <div class="status-indicator @(extensionEnabled ? "enabled" : "disabled")">
+                <div class="status-dot"></div>
+                <span class="status-text">
+                    @(extensionEnabled ? "Protection Enabled" : "Protection Disabled")
+                </span>
+            </div>
+            
+            @if (!extensionEnabled)
+            {
+                <button class="btn-primary" @onclick="EnableExtension">
+                    Enable Protection
+                </button>
+            }
+        </div>
+
+        <!-- Current Page Info -->
+        <div class="page-info">
+            <h3>Current Page</h3>
+            <div class="page-details">
+                <div class="page-url">@currentUrl</div>
+                <div class="security-status @securityStatusClass">
+                    <span class="security-icon">@securityIcon</span>
+                    @securityMessage
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-section">
+            <div class="stat-item">
+                <div class="stat-number">@stats.BlockedThreats</div>
+                <div class="stat-label">Threats Blocked</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">@stats.ScannedPages</div>
+                <div class="stat-label">Pages Scanned</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <button class="btn-secondary" @onclick="OpenOptions">
+                <span class="btn-icon">⚙️</span>
+                Settings
+            </button>
+            <button class="btn-secondary" @onclick="RefreshStatus">
+                <span class="btn-icon">🔄</span>
+                Refresh
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool extensionEnabled = true;
+    private string currentUrl = "";
+    private string securityMessage = "Checking...";
+    private string securityStatusClass = "checking";
+    private string securityIcon = "🔍";
+    
+    private ExtensionStats stats = new() { BlockedThreats = 0, ScannedPages = 0 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStatus();
+    }
+
+    private async Task LoadStatus()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            // Load configuration
+            var config = await ConfigManager.GetConfigAsync();
+            extensionEnabled = config.ExtensionEnabled;
+
+            // Get current tab info
+            await GetCurrentPageInfo();
+
+            // Load statistics
+            await LoadStatistics();
+
+            // Check page security status
+            await CheckPageSecurity();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to load status: {ex.Message}");
+            securityMessage = "Failed to load status";
+            securityStatusClass = "error";
+            securityIcon = "❌";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GetCurrentPageInfo()
+    {
+        try
+        {
+            // This would normally get the current active tab
+            // For now, we'll show a placeholder
+            currentUrl = "Current page URL will be shown here";
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to get current page: {ex.Message}");
+            currentUrl = "Unable to determine current page";
+        }
+    }
+
+    private async Task LoadStatistics()
+    {
+        try
+        {
+            // Load statistics from storage or service
+            // For now, using placeholder values
+            stats.BlockedThreats = 15;
+            stats.ScannedPages = 247;
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to load statistics: {ex.Message}");
+        }
+    }
+
+    private async Task CheckPageSecurity()
+    {
+        try
+        {
+            // Check if current page is secure
+            // This is a placeholder - would normally check against detection rules
+            securityMessage = "Page appears safe";
+            securityStatusClass = "safe";
+            securityIcon = "✅";
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to check page security: {ex.Message}");
+            securityMessage = "Unable to verify page security";
+            securityStatusClass = "unknown";
+            securityIcon = "❓";
+        }
+    }
+
+    private async Task EnableExtension()
+    {
+        try
+        {
+            var config = await ConfigManager.GetConfigAsync();
+            config.ExtensionEnabled = true;
+            await ConfigManager.SetConfigAsync(config);
+            extensionEnabled = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to enable extension: {ex.Message}");
+        }
+    }
+
+    private async Task RefreshStatus()
+    {
+        await LoadStatus();
+    }
+
+    private async Task OpenOptions()
+    {
+        await JSRuntime.InvokeVoidAsync("chrome.runtime.openOptionsPage");
+    }
+
+    private class ExtensionStats
+    {
+        public int BlockedThreats { get; set; }
+        public int ScannedPages { get; set; }
+    }
+}
+
+<style>
+    .popup-container {
+        font-size: 14px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem 0;
+    }
+
+    .spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-left: 2px solid #F77F00;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .status-section {
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10B981;
+    }
+
+    .status-indicator.disabled .status-dot {
+        background: #EF4444;
+    }
+
+    .status-text {
+        font-weight: 500;
+    }
+
+    .page-info {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .page-info h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: #F77F00;
+    }
+
+    .page-url {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 0.5rem;
+        word-break: break-all;
+    }
+
+    .security-status {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .security-status.safe {
+        color: #10B981;
+    }
+
+    .security-status.warning {
+        color: #F59E0B;
+    }
+
+    .security-status.danger {
+        color: #EF4444;
+    }
+
+    .security-status.checking,
+    .security-status.unknown {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .stats-section {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-item {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 18px;
+        font-weight: 700;
+        color: #F77F00;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .actions-section {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .btn-primary {
+        background: #F77F00;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #E56F00;
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+    }
+
+    .btn-icon {
+        font-size: 10px;
+    }
+</style>

@@ -1,0 +1,500 @@
+@page "/?view=options"
+@using CheckWebAssembly.Services
+@using CheckWebAssembly.Models
+@inject IConfigurationManager ConfigManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Check Settings</PageTitle>
+
+<div class="options-container">
+    @if (isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Loading settings...</p>
+        </div>
+    }
+    else
+    {
+        <div class="settings-sections">
+            <!-- General Settings -->
+            <div class="settings-section">
+                <h2>General Settings</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.ExtensionEnabled" />
+                        <span class="setting-label">
+                            <strong>Enable Extension</strong>
+                            <small>Master switch for all Check protection features</small>
+                        </span>
+                    </label>
+                    
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnablePageBlocking" />
+                        <span class="setting-label">
+                            <strong>Block Malicious Pages</strong>
+                            <small>Automatically block access to detected phishing pages</small>
+                        </span>
+                    </label>
+                    
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableContentManipulation" />
+                        <span class="setting-label">
+                            <strong>Enable Content Protection</strong>
+                            <small>Modify page content to highlight security warnings</small>
+                        </span>
+                    </label>
+                    
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.ShowNotifications" />
+                        <span class="setting-label">
+                            <strong>Show Notifications</strong>
+                            <small>Display security alerts and status messages</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Detection Settings -->
+            <div class="settings-section">
+                <h2>Detection Settings</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableUrlMonitoring" />
+                        <span class="setting-label">
+                            <strong>URL Monitoring</strong>
+                            <small>Continuously monitor page URLs for suspicious patterns</small>
+                        </span>
+                    </label>
+                    
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableValidPageBadge" />
+                        <span class="setting-label">
+                            <strong>Show Valid Page Badge</strong>
+                            <small>Display verification badge on legitimate Microsoft pages</small>
+                        </span>
+                    </label>
+                    
+                    <div class="setting-item">
+                        <span class="setting-label">
+                            <strong>Custom Rules URL</strong>
+                            <small>URL to fetch additional detection rules from</small>
+                        </span>
+                        <input type="url" @bind="config.CustomRulesUrl" placeholder="https://example.com/rules.json" class="text-input" />
+                    </div>
+                    
+                    <div class="setting-item">
+                        <span class="setting-label">
+                            <strong>Update Interval (hours)</strong>
+                            <small>How often to refresh detection rules</small>
+                        </span>
+                        <input type="number" @bind="updateIntervalHours" min="1" max="168" class="number-input" />
+                    </div>
+                </div>
+            </div>
+
+            <!-- CIPP Integration -->
+            <div class="settings-section">
+                <h2>CIPP Integration</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableCippReporting" />
+                        <span class="setting-label">
+                            <strong>Enable CIPP Reporting</strong>
+                            <small>Send security alerts to CIPP dashboard</small>
+                        </span>
+                    </label>
+                    
+                    @if (config.EnableCippReporting)
+                    {
+                        <div class="setting-item">
+                            <span class="setting-label">
+                                <strong>CIPP Server URL</strong>
+                                <small>Base URL for your CIPP server instance</small>
+                            </span>
+                            <input type="url" @bind="config.CippServerUrl" placeholder="https://cipp.example.com" class="text-input" />
+                        </div>
+                        
+                        <div class="setting-item">
+                            <span class="setting-label">
+                                <strong>Tenant ID</strong>
+                                <small>Your organization's tenant identifier</small>
+                            </span>
+                            <input type="text" @bind="config.CippTenantId" placeholder="tenant-id-or-domain" class="text-input" />
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Advanced Settings -->
+            <div class="settings-section">
+                <h2>Advanced Settings</h2>
+                
+                <div class="setting-group">
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableDebugLogging" />
+                        <span class="setting-label">
+                            <strong>Enable Debug Logging</strong>
+                            <small>Log detailed information for troubleshooting</small>
+                        </span>
+                    </label>
+                    
+                    <label class="setting-item">
+                        <input type="checkbox" @bind="config.EnableDeveloperConsoleLogging" />
+                        <span class="setting-label">
+                            <strong>Console Logging</strong>
+                            <small>Output debug information to browser console</small>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-section">
+                <button class="btn-primary" @onclick="SaveSettings" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>💾</span>
+                        <span>Save Settings</span>
+                    }
+                </button>
+                
+                <button class="btn-secondary" @onclick="ResetToDefaults">
+                    <span>🔄</span>
+                    <span>Reset to Defaults</span>
+                </button>
+                
+                <button class="btn-secondary" @onclick="ExportSettings">
+                    <span>📤</span>
+                    <span>Export Settings</span>
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <div class="status-message @statusMessageClass">
+                @statusMessage
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private ExtensionConfig config = new();
+    private int updateIntervalHours = 1;
+    private string statusMessage = "";
+    private string statusMessageClass = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSettings();
+    }
+
+    private async Task LoadSettings()
+    {
+        try
+        {
+            isLoading = true;
+            config = await ConfigManager.GetConfigAsync();
+            updateIntervalHours = config.UpdateInterval / 3600000; // Convert milliseconds to hours
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to load settings: {ex.Message}");
+            ShowStatus("Failed to load settings", "error");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            isSaving = true;
+            config.UpdateInterval = updateIntervalHours * 3600000; // Convert hours to milliseconds
+            
+            await ConfigManager.SetConfigAsync(config);
+            ShowStatus("Settings saved successfully!", "success");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to save settings: {ex.Message}");
+            ShowStatus("Failed to save settings", "error");
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ResetToDefaults()
+    {
+        try
+        {
+            var confirmReset = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to reset all settings to defaults? This cannot be undone.");
+            if (!confirmReset) return;
+
+            await ConfigManager.SetDefaultConfigAsync();
+            await LoadSettings();
+            ShowStatus("Settings reset to defaults", "success");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to reset settings: {ex.Message}");
+            ShowStatus("Failed to reset settings", "error");
+        }
+    }
+
+    private async Task ExportSettings()
+    {
+        try
+        {
+            var exportData = await ConfigManager.ExportConfigurationAsync();
+            var blob = new { type = "application/json" };
+            var fileName = $"check-settings-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, exportData, "application/json");
+            ShowStatus("Settings exported successfully", "success");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Failed to export settings: {ex.Message}");
+            ShowStatus("Failed to export settings", "error");
+        }
+    }
+
+    private void ShowStatus(string message, string type)
+    {
+        statusMessage = message;
+        statusMessageClass = type;
+        StateHasChanged();
+
+        // Clear message after 3 seconds
+        _ = Task.Delay(3000).ContinueWith(_ =>
+        {
+            statusMessage = "";
+            InvokeAsync(StateHasChanged);
+        });
+    }
+}
+
+<style>
+    .options-container {
+        max-width: 800px;
+        margin: 0 auto;
+        font-size: 14px;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 3rem 0;
+    }
+
+    .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid rgba(255, 255, 255, 0.2);
+        border-left: 3px solid #F77F00;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    .spinner-small {
+        width: 12px;
+        height: 12px;
+        border: 2px solid transparent;
+        border-left: 2px solid currentColor;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .settings-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .settings-section {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .settings-section h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #F77F00;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 0.5rem;
+    }
+
+    .setting-group {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .setting-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        cursor: pointer;
+    }
+
+    .setting-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin-top: 2px;
+        accent-color: #F77F00;
+    }
+
+    .setting-label {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .setting-label strong {
+        color: white;
+        font-weight: 500;
+    }
+
+    .setting-label small {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .text-input,
+    .number-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        font-size: 13px;
+        margin-top: 0.5rem;
+    }
+
+    .text-input:focus,
+    .number-input:focus {
+        outline: none;
+        border-color: #F77F00;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .text-input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .number-input {
+        width: 120px;
+    }
+
+    .action-section {
+        display: flex;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .btn-primary,
+    .btn-secondary {
+        padding: 0.75rem 1rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: #F77F00;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #E56F00;
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-secondary {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+    }
+
+    .status-message {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    }
+
+    .status-message.success {
+        background: #10B981;
+        color: white;
+    }
+
+    .status-message.error {
+        background: #EF4444;
+        color: white;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+</style>
